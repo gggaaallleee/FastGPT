@@ -221,10 +221,11 @@ export async function updateData2Dataset({
   }
 
   // 4. Update mongo updateTime(便于脏数据检查器识别)
+  const updateTime = mongoData.updateTime;
   mongoData.updateTime = new Date();
   await mongoData.save();
 
-  // 5. Insert vector
+  // 5. insert vector
   const insertResult = await Promise.all(
     patchResult
       .filter((item) => item.type === 'create' || item.type === 'update')
@@ -249,9 +250,20 @@ export async function updateData2Dataset({
     .filter((item) => item.type !== 'delete')
     .map((item) => item.index) as DatasetDataIndexItemType[];
 
-  // console.log(clonePatchResult2Insert);
+  // 6. update mongo data
   await mongoSessionRun(async (session) => {
-    // Update MongoData
+    // Update history
+    mongoData.history =
+      q !== mongoData.q || a !== mongoData.a
+        ? [
+            {
+              q: mongoData.q,
+              a: mongoData.a,
+              updateTime: updateTime
+            },
+            ...(mongoData.history?.slice(0, 9) || [])
+          ]
+        : mongoData.history;
     mongoData.q = q || mongoData.q;
     mongoData.a = a ?? mongoData.a;
     mongoData.indexes = newIndexes;
